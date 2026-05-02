@@ -1,0 +1,175 @@
+version: "3.9"
+
+services:
+  # ─── Databases ────────────────────────────────────────────────────────────
+  customer-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB:       customer_db
+      POSTGRES_USER:     ${CUSTOMER_DB_USER:-cust_user}
+      POSTGRES_PASSWORD: ${CUSTOMER_DB_PASS:-cust_pass}
+    volumes:
+      - customer-db-data:/var/lib/postgresql/data
+      - ./seeds/seed_customers.sql:/docker-entrypoint-initdb.d/01_seed.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${CUSTOMER_DB_USER:-cust_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  account-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB:       account_db
+      POSTGRES_USER:     ${ACCOUNT_DB_USER:-acct_user}
+      POSTGRES_PASSWORD: ${ACCOUNT_DB_PASS:-acct_pass}
+    volumes:
+      - account-db-data:/var/lib/postgresql/data
+      - ./seeds/seed_accounts.sql:/docker-entrypoint-initdb.d/01_seed.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${ACCOUNT_DB_USER:-acct_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  transaction-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB:       transaction_db
+      POSTGRES_USER:     ${TXN_DB_USER:-txn_user}
+      POSTGRES_PASSWORD: ${TXN_DB_PASS:-txn_pass}
+    volumes:
+      - transaction-db-data:/var/lib/postgresql/data
+      - ./seeds/seed_transactions.sql:/docker-entrypoint-initdb.d/01_seed.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${TXN_DB_USER:-txn_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  notification-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB:       notification_db
+      POSTGRES_USER:     ${NOTIF_DB_USER:-notif_user}
+      POSTGRES_PASSWORD: ${NOTIF_DB_PASS:-notif_pass}
+    volumes:
+      - notification-db-data:/var/lib/postgresql/data
+      - ./seeds/seed_notifications.sql:/docker-entrypoint-initdb.d/01_seed.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${NOTIF_DB_USER:-notif_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Message Broker ───────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBIT_USER:-rabbit}
+      RABBITMQ_DEFAULT_PASS: ${RABBIT_PASS:-rabbit_pass}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Microservices ────────────────────────────────────────────────────────
+  customer-svc:
+    build: ./customer-service
+    ports:
+      - "8001:8001"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${CUSTOMER_DB_USER:-cust_user}:${CUSTOMER_DB_PASS}@customer-db/customer_db
+      RABBITMQ_URL: amqp://${RABBIT_USER:-rabbit}:${RABBIT_PASS}@rabbitmq:5672/
+      LOG_LEVEL:    INFO
+    depends_on:
+      customer-db: { condition: service_healthy }
+      rabbitmq:    { condition: service_healthy }
+    restart: unless-stopped
+
+  account-svc:
+    build: ./account-service
+    ports:
+      - "8002:8002"
+    environment:
+      DATABASE_URL:     postgresql+asyncpg://${ACCOUNT_DB_USER:-acct_user}:${ACCOUNT_DB_PASS}@account-db/account_db
+      RABBITMQ_URL:     amqp://${RABBIT_USER:-rabbit}:${RABBIT_PASS}@rabbitmq:5672/
+      CUSTOMER_SVC_URL: http://customer-svc:8001
+      LOG_LEVEL:        INFO
+    depends_on:
+      account-db:  { condition: service_healthy }
+      rabbitmq:    { condition: service_healthy }
+      customer-svc:
+        condition: service_started
+    restart: unless-stopped
+
+  transaction-svc:
+    build: ./transaction-service
+    ports:
+      - "8003:8003"
+    environment:
+      DATABASE_URL:          postgresql+asyncpg://${TXN_DB_USER:-txn_user}:${TXN_DB_PASS}@transaction-db/transaction_db
+      ACCOUNT_SVC_URL:       http://account-svc:8002
+      RABBITMQ_URL:          amqp://${RABBIT_USER:-rabbit}:${RABBIT_PASS}@rabbitmq:5672/
+      DAILY_TRANSFER_LIMIT:  "200000"
+      HIGH_VALUE_THRESHOLD:  "10000"
+      IDEMPOTENCY_WINDOW_H:  "24"
+      LOG_LEVEL:             INFO
+    depends_on:
+      transaction-db: { condition: service_healthy }
+      rabbitmq:       { condition: service_healthy }
+      account-svc:
+        condition: service_started
+    restart: unless-stopped
+
+  notification-svc:
+    build: ./notification-service
+    ports:
+      - "8004:8004"
+    environment:
+      DATABASE_URL:     postgresql+asyncpg://${NOTIF_DB_USER:-notif_user}:${NOTIF_DB_PASS}@notification-db/notification_db
+      RABBITMQ_URL:     amqp://${RABBIT_USER:-rabbit}:${RABBIT_PASS}@rabbitmq:5672/
+      CUSTOMER_SVC_URL: http://customer-svc:8001
+      SMTP_HOST:        ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT:        ${SMTP_PORT:-587}
+      SMTP_USER:        ${SMTP_USER:-}
+      SMTP_PASS:        ${SMTP_PASS:-}
+      LOG_LEVEL:        INFO
+    depends_on:
+      notification-db: { condition: service_healthy }
+      rabbitmq:        { condition: service_healthy }
+    restart: unless-stopped
+
+  # ─── Observability ────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASS:-admin}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/customer-svc.json
+    depends_on:
+      - prometheus
+
+volumes:
+  customer-db-data:    {}
+  account-db-data:     {}
+  transaction-db-data: {}
+  notification-db-data: {}
+  grafana-data:        {}

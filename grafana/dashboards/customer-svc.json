@@ -1,0 +1,190 @@
+{
+  "uid": "customer-svc",
+  "title": "Customer Service",
+  "tags": ["banking", "customer-svc"],
+  "timezone": "browser",
+  "refresh": "15s",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Requests per Second",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "sum(rate(http_requests_total{service=\"customer-svc\"}[1m])) by (method, endpoint)",
+          "legendFormat": "{{method}} {{endpoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Error Rate (%)",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "100 * sum(rate(http_requests_total{service=\"customer-svc\", status_code=~\"[45]..\"}[1m])) / sum(rate(http_requests_total{service=\"customer-svc\"}[1m]))",
+          "legendFormat": "Error %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Response Latency (p50 / p90 / p99)",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{service=\"customer-svc\"}[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{service=\"customer-svc\"}[5m])) by (le))",
+          "legendFormat": "p90"
+        },
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=\"customer-svc\"}[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Customer Registrations (rate/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 7 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "rate(customer_registrations_total{service=\"customer-svc\"}[1m]) * 60",
+          "legendFormat": "Registrations / min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "fixedColor": "green", "mode": "fixed" } }
+      }
+    },
+    {
+      "id": 5,
+      "title": "KYC Status Changes",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 7 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "sum(rate(kyc_status_changes_total{service=\"customer-svc\"}[5m])) by (new_status)",
+          "legendFormat": "→ {{new_status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Duplicate Email Rejections (rate/min)",
+      "type": "timeseries",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 7 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "rate(duplicate_email_rejections_total{service=\"customer-svc\"}[1m]) * 60",
+          "legendFormat": "Duplicate rejections / min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "fixedColor": "orange", "mode": "fixed" } }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Total Customers Registered",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 15, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "customer_registrations_total{service=\"customer-svc\"}",
+          "legendFormat": "Total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "fixedColor": "green", "mode": "fixed" } }
+      }
+    },
+    {
+      "id": 8,
+      "title": "KYC → VERIFIED (total)",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 15, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "kyc_status_changes_total{service=\"customer-svc\", new_status=\"VERIFIED\"}",
+          "legendFormat": "Verified"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "fixedColor": "green", "mode": "fixed" } }
+      }
+    },
+    {
+      "id": 9,
+      "title": "KYC → REJECTED (total)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 15, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "kyc_status_changes_total{service=\"customer-svc\", new_status=\"REJECTED\"}",
+          "legendFormat": "Rejected"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "fixedColor": "red", "mode": "fixed" } }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Duplicate Email Rejections (total)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 15, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "datasource": { "uid": "prometheus" },
+          "expr": "duplicate_email_rejections_total{service=\"customer-svc\"}",
+          "legendFormat": "Duplicates"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "fixedColor": "orange", "mode": "fixed" } }
+      }
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: banking-local
+
+scrape_configs:
+  - job_name: customer-svc
+    static_configs:
+      - targets: ['customer-svc:8001']
+    metrics_path: /metrics
+
+  - job_name: account-svc
+    static_configs:
+      - targets: ['account-svc:8002']
+    metrics_path: /metrics
+
+  - job_name: transaction-svc
+    static_configs:
+      - targets: ['transaction-svc:8003']
+    metrics_path: /metrics
+
+  - job_name: notification-svc
+    static_configs:
+      - targets: ['notification-svc:8004']
+    metrics_path: /metrics
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

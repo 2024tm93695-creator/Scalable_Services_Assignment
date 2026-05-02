@@ -1,0 +1,171 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-svc
+  namespace: banking
+  labels:
+    app: customer-svc
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: customer-svc
+  template:
+    metadata:
+      labels:
+        app: customer-svc
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port:   "8001"
+        prometheus.io/path:   "/metrics"
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: customer-svc
+          image: banking/customer-svc:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8001
+          resources:
+            requests:
+              cpu:               100m
+              memory:            128Mi
+              ephemeral-storage: 64Mi
+            limits:
+              cpu:               500m
+              memory:            512Mi
+              ephemeral-storage: 256Mi
+          envFrom:
+            - configMapRef:
+                name: customer-svc-config
+            - secretRef:
+                name: customer-svc-secret
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8001
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-svc
+  namespace: banking
+spec:
+  type: NodePort
+  selector:
+    app: customer-svc
+  ports:
+    - port: 8001
+      targetPort: 8001
+      nodePort: 30001
+      protocol: TCP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: customer-svc-config
+  namespace: banking
+data:
+  LOG_LEVEL:    "INFO"
+  RABBITMQ_URL: "amqp://rabbit:rabbit_pass@rabbitmq-svc:5672/"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: customer-svc-secret
+  namespace: banking
+type: Opaque
+# In production replace stringData with base64-encoded `data:` entries managed via Sealed Secrets or Vault.
+stringData:
+  DATABASE_URL: "postgresql+asyncpg://cust_user:cust_pass@customer-db-svc/customer_db"
+  SECRET_KEY:   "change-me-in-production"
+  DB_PASSWORD:  "cust_pass"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: customer-db-pvc
+  namespace: banking
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: customer-db
+  namespace: banking
+spec:
+  serviceName: customer-db-svc
+  replicas: 1
+  selector:
+    matchLabels:
+      app: customer-db
+  template:
+    metadata:
+      labels:
+        app: customer-db
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: customer_db
+            - name: POSTGRES_USER
+              value: cust_user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: customer-svc-secret
+                  key: DB_PASSWORD
+          volumeMounts:
+            - name: customer-db-storage
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu:               100m
+              memory:            256Mi
+              ephemeral-storage: 64Mi
+            limits:
+              cpu:               500m
+              memory:            1Gi
+              ephemeral-storage: 256Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: customer-db-storage
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-db-svc
+  namespace: banking
+spec:
+  clusterIP: None
+  selector:
+    app: customer-db
+  ports:
+    - port: 5432
+      targetPort: 5432

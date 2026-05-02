@@ -1,0 +1,189 @@
+# ============================================================
+# Customer Service — Sample API Calls
+# VS Code: install "REST Client" extension (humao.rest-client)
+# Click "Send Request" above any request to run it
+# ============================================================
+
+@base = http://localhost:8001/api/v1
+
+# ── Switch base URL for Minikube ─────────────────────────────
+# @base = http://127.0.0.1:61339/api/v1
+
+
+###############################################################
+# HEALTH CHECK
+###############################################################
+
+### Health
+GET {{base}}/health
+
+
+###############################################################
+# CUSTOMER CRUD
+###############################################################
+
+### 1. Create Customer
+POST {{base}}/customers
+Content-Type: application/json
+
+{
+  "name": "Priya Sharma",
+  "email": "priya.sharma@example.com",
+  "phone": "9876543210",
+  "kyc_status": "PENDING"
+}
+
+###
+
+### 2. Create Another Customer
+POST {{base}}/customers
+Content-Type: application/json
+
+{
+  "name": "Rohan Das",
+  "email": "rohan.das@bankmail.in",
+  "phone": "9123456780"
+}
+
+###
+
+### 3. Get Customer by ID
+GET {{base}}/customers/1
+
+###
+
+### 4. List All Customers (page 1, 10 per page)
+GET {{base}}/customers?page=1&size=10
+
+###
+
+### 5. List Customers filtered by KYC status — PENDING
+GET {{base}}/customers?kyc_status=PENDING
+
+###
+
+### 6. List Customers filtered by KYC status — VERIFIED
+GET {{base}}/customers?kyc_status=VERIFIED
+
+###
+
+### 7. List Customers filtered by KYC status — REJECTED
+GET {{base}}/customers?kyc_status=REJECTED
+
+###
+
+### 8. Update Customer Profile
+PUT {{base}}/customers/1
+Content-Type: application/json
+
+{
+  "name": "Priya Sharma Reddy",
+  "phone": "9000000001"
+}
+
+###
+
+### 9. Delete Customer
+DELETE {{base}}/customers/61
+
+###
+
+### 10. Create Duplicate Customer (expect 409 Conflict)
+POST {{base}}/customers
+Content-Type: application/json
+
+{
+  "name": "Duplicate User",
+  "email": "priya.sharma@example.com",
+  "phone": "9111111111"
+}
+
+
+###############################################################
+# KYC MANAGEMENT
+###############################################################
+
+### 11. Get KYC Status
+GET {{base}}/customers/1/kyc
+
+###
+
+### 12. Approve KYC (PENDING → VERIFIED)
+PATCH {{base}}/customers/6/kyc
+Content-Type: application/json
+
+{
+  "kyc_status": "VERIFIED"
+}
+
+###
+
+### 13. Reject KYC
+PATCH {{base}}/customers/13/kyc
+Content-Type: application/json
+
+{
+  "kyc_status": "REJECTED"
+}
+
+###
+
+### 14. Reset KYC to PENDING
+PATCH {{base}}/customers/13/kyc
+Content-Type: application/json
+
+{
+  "kyc_status": "PENDING"
+}
+
+###
+
+### 15. Invalid KYC Status (expect 422)
+PATCH {{base}}/customers/1/kyc
+Content-Type: application/json
+
+{
+  "kyc_status": "APPROVED"
+}
+
+###
+
+### 16. KYC on Non-existent Customer (expect 404)
+GET {{base}}/customers/9999/kyc
+
+
+###############################################################
+# EDGE CASES
+###############################################################
+
+### 17. Get Non-existent Customer (expect 404)
+GET {{base}}/customers/9999
+
+###
+
+### 18. Create Customer with Invalid Email (expect 422)
+POST {{base}}/customers
+Content-Type: application/json
+
+{
+  "name": "Bad Email",
+  "email": "not-an-email",
+  "phone": "9000000000"
+}
+
+###
+
+### 19. Create Customer with Short Phone (expect 422)
+POST {{base}}/customers
+Content-Type: application/json
+
+{
+  "name": "Short Phone",
+  "email": "short@example.com",
+  "phone": "123"
+}
+
+###
+
+### 20. Prometheus Metrics
+GET http://localhost:8001/metrics
