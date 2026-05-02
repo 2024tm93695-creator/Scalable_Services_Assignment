@@ -27,8 +27,8 @@ POST {{base}}/customers
 Content-Type: application/json
 
 {
-  "name": "Priya Sharma",
-  "email": "priya.sharma@test.com",
+  "name": "Priya Sharma-1",
+  "email": "priya.sharma-1@test.com",
   "phone": "9876543210",
   "kyc_status": "PENDING"
 }
@@ -48,7 +48,7 @@ Content-Type: application/json
 ###
 
 ### 3. Get Customer by ID
-GET {{base}}/customers/64
+GET {{base}}/customers/65
 
 ###
 
@@ -73,7 +73,7 @@ GET {{base}}/customers?kyc_status=REJECTED
 ###
 
 ### 8. Update Customer Profile
-PUT {{base}}/customers/64
+PUT {{base}}/customers/65
 Content-Type: application/json
 
 {
@@ -84,7 +84,7 @@ Content-Type: application/json
 ###
 
 ### 9. Delete Customer
-DELETE {{base}}/customers/1
+DELETE {{base}}/customers/65
 
 ###
 
@@ -104,7 +104,7 @@ Content-Type: application/json
 ###############################################################
 
 ### 11. Get KYC Status
-GET {{base}}/customers/1/kyc
+GET {{base}}/customers/60/kyc
 
 ###
 
