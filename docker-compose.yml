@@ -8,6 +8,8 @@ services:
       POSTGRES_DB:       customer_db
       POSTGRES_USER:     ${CUSTOMER_DB_USER:-cust_user}
       POSTGRES_PASSWORD: ${CUSTOMER_DB_PASS:-cust_pass}
+    ports:
+      - "5432:5432"
     volumes:
       - customer-db-data:/var/lib/postgresql/data
       - ./seeds/seed_customers.sql:/docker-entrypoint-initdb.d/01_seed.sql
@@ -166,6 +168,16 @@ services:
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/customer-svc.json
     depends_on:
       - prometheus
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL:    admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    depends_on:
+      - customer-db
 
 volumes:
   customer-db-data:    {}
